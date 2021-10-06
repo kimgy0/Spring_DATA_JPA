@@ -143,8 +143,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
      * 옵셔널은 두개 result가 나오게 되면 예외를 터치는데 db 마다 예외가 다르다. 그렇기 때문에
      * 스프링은 추상화를 해놓은 스프링만의 예외로 변환을 해서 제공.
      *
-     * 처리해주는 타입들의 목록
-     * 스프링 데이터 JPA 공식 문서: https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#repository-query-return-types
+     * 처리해주는 타입들의 목록록     * 스프링 데이터 JPA 공식 문서: https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#repository-query-return-types
      *
      */
 

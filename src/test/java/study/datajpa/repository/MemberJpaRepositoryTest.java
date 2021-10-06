@@ -34,7 +34,7 @@ class MemberJpaRepositoryTest {
     }
 
     
-    //TeamRepository 검증
+    //TeamJpaRepository 검증
     @Test
     public void basicCRUD() throws Exception{
         //given
@@ -64,12 +64,32 @@ class MemberJpaRepositoryTest {
 
         long deletedCount = memberJpaRepository.count();
         Assertions.assertThat(count).isEqualTo(0);
+    }
 
+    @Test
+    public void findByUsernameAndAgeGreaterThen() throws Exception{
+        Member m1 = new Member("AAA", 10);
+        Member m2 = new Member("AAA", 20);
+        memberJpaRepository.save(m1);
+        memberJpaRepository.save(m2);
 
+        List<Member> result = memberJpaRepository.findByUsernameAndAgeGreaterThen("AAA", 15);
+        Assertions.assertThat(result.get(0).getUsername()).isEqualTo("AAA");
+        Assertions.assertThat(result.get(0).getAge()).isEqualTo(20);
+        Assertions.assertThat(result.size()).isEqualTo(1);
 
+    }
+    
+    @Test
+    public void testNamedQuery() throws Exception{
+        Member m1 = new Member("AAA", 10);
+        Member m2 = new Member("AAA", 20);
+        memberJpaRepository.save(m1);
+        memberJpaRepository.save(m2);
 
-
-        //then
+        List<Member> result = memberJpaRepository.findByUsername("AAA");
+        Member findMember = result.get(0);
+        assertThat(findMember).isEqualTo(m1);
 
     }
 }

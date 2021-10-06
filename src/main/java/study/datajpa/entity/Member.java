@@ -5,6 +5,16 @@ import lombok.*;
 
 import javax.persistence.*;
 
+
+@NamedQuery(name="Member.findByUsername",
+            query="select m from Member m where m.username =:username")
+//namedQuery : 자주 사용하는 쿼리에 이름을 붙여서 사용하는 방식.
+/**
+ * 네임드 쿼리 사용 방법
+ * em.createNamedQuery("Member.findByUsername", Member.class)
+ *                 .setParameter("username", username)
+ *                 .getResultList();
+ */
 @Entity
 @Getter @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -23,6 +33,11 @@ public class Member {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id")
     private Team team;
+
+    public Member(String username, int age) {
+        this.username = username;
+        this.age = age;
+    }
 
     public Member(String username, int age, Team team) {
         this.username = username;

@@ -92,4 +92,50 @@ class MemberJpaRepositoryTest {
         assertThat(findMember).isEqualTo(m1);
 
     }
+
+    /*
+     * 나이를 조건으로 페이징 하는 쿼리
+     */
+    @Test
+    public void paging() throws Exception{
+        memberJpaRepository.save(new Member("member1", 10));
+        memberJpaRepository.save(new Member("member2", 10));
+        memberJpaRepository.save(new Member("member3", 10));
+        memberJpaRepository.save(new Member("member4", 10));
+        memberJpaRepository.save(new Member("member5", 10));
+
+        int age = 10;
+        int offset = 0;
+        int limit = 3;
+
+
+        List<Member> members = memberJpaRepository.findByPage(age, offset, limit);
+        long totalCount = memberJpaRepository.totalCount(age);
+
+        /*
+         * 여기서 마지막페이지와 최초페이지 등 공식을 적용하여 계산을 합니다.
+         * 하지만 jpa-data 에서 페이징을 지원합니다.
+         *
+         * 옛날에 개발을 할 때는 수화통역 앱 만든 백엔드리포지토리를 가보게 되면 옛날 선배들이 고이 전수해주시는 페이징쿼리가 있는데
+         * 그거 말고 springframework 에서 두가지 인터페이스로 공통화를 시켜서 만들어두었다.
+         *
+         * org.springframework.data.domain.Sort : 정렬 기능
+         * org.springframework.data.domain.Pageable : 페이징 기능 (내부에 Sort 포함)
+         *
+         *
+         *
+         * org.springframework.data.domain.Page : 추가 count 쿼리 결과를 포함하는 페이징
+         * org.springframework.data.domain.Slice : 추가 count 쿼리 없이 다음 페이지만 확인 가능
+         * 여기에서는 Page가 totalCount를 가져오는 쿼리를 날리고
+         * Slice는 totalCount를 가져오는 쿼리를 날리지 않는다
+         *  Slice : 쇼핑몰 사이트 더보기 기능 -> 1부터 11까지의 쿼리를 날리고 11이 존재하면 더보기를 표시하여 11 - 20까지 가져오고,
+         *          이렇게 진행 하다가 마지막에 (21이 없을 경우) 더 가져올게 없을 경우 마지막 페이지 입니다를 호출하는 경우.
+         *
+         * 반환타입에 List 로 받으면 totalCount 없이 가져온다.
+         */
+
+        Assertions.assertThat(members.size()).isEqualTo(3);
+        Assertions.assertThat(totalCount).isEqualTo(5);
+
+    }
 }

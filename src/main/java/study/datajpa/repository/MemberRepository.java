@@ -1,5 +1,7 @@
 package study.datajpa.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -149,4 +151,11 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
 //    Optional<Member> findOptionalMember = memberRepository.findOptionalByUsername("AAA");
 //        System.out.println("findOptionalMember = " + findOptionalMember);
+
+
+    @Query(value = "select m from Member m left join m.team t" , countQuery = "select count(m.username) from Member m")
+    Page<Member> findByAge(int age, Pageable pageable);
+    /*
+     * 쿼리에 대한 조건 : Pageable 은 현재 내가 1페이지인지 2페이지인지 정보가 들어감.
+     */
 }

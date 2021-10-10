@@ -4,6 +4,9 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import study.datajpa.dto.MemberDto;
@@ -182,6 +185,97 @@ class MemberRepositoryTest {
 
         Optional<Member> findOptionalMember = memberRepository.findOptionalByUsername("AAA");
         System.out.println("findOptionalMember = " + findOptionalMember);
+    }
+
+
+    @Test
+    public void paging() throws Exception{
+        memberRepository.save(new Member("member1", 10));
+        memberRepository.save(new Member("member2", 10));
+        memberRepository.save(new Member("member3", 10));
+        memberRepository.save(new Member("member4", 10));
+        memberRepository.save(new Member("member5", 10));
+
+        int age=10;
+        PageRequest pageRequest = PageRequest.of(0, 3, Sort.by(Sort.Direction.DESC, "username"));
+        //Spring data jpa는 페이징을 0부터 시작하고, 3개까지 가져오라는 얘기.
+        Page<Member> page = memberRepository.findByAge(age, pageRequest);
+        //구현을 하지 않아도 페이저블 객체를 넘기면(pageable 자식 객체) Page 형식이 반환된다.
+        //        Sort.by(Sort.Direction.DESC, "username") 소팅 정렬은 생략 가능하다.
+        // 반환 타입을 페이지라고 받게 되면 totalCount가 필요한걸 인지하고 totalCount를 실행한다.
+//        long totalCount = memberRepository.totalCount(age);
+
+        List<Member> content = page.getContent();
+        //페이지 객체에 getcontent로 결과를 가져올 수 있다.
+        long totalElements = page.getTotalElements();
+        //토탈 카운트와 같은 쿼리가 나간것이다.
+
+        for (Member member : content) {
+            System.out.println("member = " + member);
+        }
+        System.out.println("totalElements = " + totalElements);
+        //OFFSET이 없는 이유는 스프링이 0을 기준으로 할때는 필요가 없다는 것을 느껴서 없앰.
+
+        /*
+         * member = Member(id=5, username=member5, age=10)
+            member = Member(id=4, username=member4, age=10)
+            member = Member(id=3, username=member3, age=10)
+            totalElements = 5
+         */
+
+        /*
+         * 여기서 마지막페이지와 최초페이지 등 공식을 적용하여 계산을 합니다.
+         * 하지만 jpa-data 에서 페이징을 지원합니다.
+         *
+         * 옛날에 개발을 할 때는 수화통역 앱 만든 백엔드리포지토리를 가보게 되면 옛날 선배들이 고이 전수해주시는 페이징쿼리가 있는데
+         * 그거 말고 springframework 에서 두가지 인터페이스로 공통화를 시켜서 만들어두었다.
+         *
+         * org.springframework.data.domain.Sort : 정렬 기능
+         * org.springframework.data.domain.Pageable : 페이징 기능 (내부에 Sort 포함)
+         *
+         *
+         *
+         * org.springframework.data.domain.Page : 추가 count 쿼리 결과를 포함하는 페이징
+         * org.springframework.data.domain.Slice : 추가 count 쿼리 없이 다음 페이지만 확인 가능
+         * 여기에서는 Page가 totalCount를 가져오는 쿼리를 날리고
+         * Slice는 totalCount를 가져오는 쿼리를 날리지 않는다
+         *  Slice : 쇼핑몰 사이트 더보기 기능 -> 1부터 11까지의 쿼리를 날리고 11이 존재하면 더보기를 표시하여 11 - 20까지 가져오고,
+         *          이렇게 진행 하다가 마지막에 (21이 없을 경우) 더 가져올게 없을 경우 마지막 페이지 입니다를 호출하는 경우.
+         *
+         * 반환타입에 List 로 받으면 totalCount 없이 가져온다.
+         */
+
+        Assertions.assertThat(content.size()).isEqualTo(3);
+        Assertions.assertThat(page.getTotalElements()).isEqualTo(5);
+        Assertions.assertThat(page.getNumber()).isEqualTo(0);
+        // Assertions.assertThat(page.getNumber()).isEqualTo(0); 이렇게 하면 현재 페이지 번호도 가져올 수 있다.
+        Assertions.assertThat(page.getTotalPages()).isEqualTo(2);
+        // 이거는 전체 페이지 갯수 (직접계산) =2
+        Assertions.assertThat(page.isFirst()).isTrue();
+        // 이게 첫번째 페이지인가요 ? 라고 질의하면 true 임을 확인.
+        Assertions.assertThat(page.hasNext()).isTrue();
+        // 다음 페이지가 존재하나요? 라고 하는 질의 true 반환.
+        /*
+         * slice에는 없는 기능
+         *  Assertions.assertThat(page.getTotalElements()).isEqualTo(5);
+         *  Assertions.assertThat(page.getTotalPages()).isEqualTo(2);
+         *
+         * total count 를 날리지 않는다(간단하게 다음 페이지가 있는지의 없는지의 경우만)
+         *
+         * Slice<Member> page = memberRepository.findByAge(age, pageRequest);
+         * 페이지 리턴 타입을 slice 타입으로 바꾸어준다.
+         *
+         * 나중에 서버가 커지면 count에 기대는 데이터양이 너무 많아지면 slice로 바꿔주고 get total같은 기능이 없는 메서드를 없애준다.
+         *
+         * 슬라이스가 아니더라도 그냥 페이징만하고 싶을때는 List로 반환해서 바로 꺼내와도 상관은 없다.
+         * List<Member> page = memberRepository.findByAge(age, pageRequest);
+         *
+         *
+         *
+         *
+         * !------------------count query의 성능--------------------
+         * count쿼리를 분리하는 방법
+         */
     }
 
 }

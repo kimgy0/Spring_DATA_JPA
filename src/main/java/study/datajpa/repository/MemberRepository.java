@@ -155,6 +155,13 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 //        System.out.println("findOptionalMember = " + findOptionalMember);
 
 
+
+
+
+
+
+
+
     @Query(value = "select m from Member m left join m.team t" , countQuery = "select count(m.username) from Member m")
     /*
      * 성능상 join을 해오면서 별다른 where 절이 없다고 가정을 했을 때,

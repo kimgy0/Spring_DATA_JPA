@@ -1,13 +1,15 @@
 package study.datajpa.repository;
 
+import org.hibernate.LockMode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import study.datajpa.dto.MemberDto;
 import study.datajpa.entity.Member;
 
+import javax.persistence.LockModeType;
+import javax.persistence.QueryHint;
 import java.util.List;
 import java.util.Optional;
 
@@ -154,8 +156,65 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
 
     @Query(value = "select m from Member m left join m.team t" , countQuery = "select count(m.username) from Member m")
+    /*
+     * 성능상 join을 해오면서 별다른 where 절이 없다고 가정을 했을 때,
+     * count까지 같이 가지고 오려함.
+     *
+     * 이거는 오히려 내부에서 count 자체도 같이 해오기 때문에 데이터가 많아질 경우 성능상의 이슈를 불러올 수 있음.
+     * 그렇기 때문에 count와 해당 데이터만 페이징해서 불러오는 쿼리를 따로 분리시켜줄 필요가 있기 때문에 이런식으로 분리를 해줄 수 있다.
+     *
+     * 쿼리가 좀 복잡하고 느릴때는 카운트 쿼리를 분리해줄 수 있는 개발자가 되자.
+     */
     Page<Member> findByAge(int age, Pageable pageable);
     /*
      * 쿼리에 대한 조건 : Pageable 은 현재 내가 1페이지인지 2페이지인지 정보가 들어감.
      */
+
+
+
+
+
+
+
+    @Modifying
+    /*
+     * modifying을 넣지 않게 되면 쿼리가 singleResult나 등등 executeUpdate를 실행해야할 것을 다르게 수정한다.
+     *  modifying을 적어주지 않게 되면 오류가 생깁니다.
+     */
+    @Query("update Member m set m.age = m.age + 1 where m.age >= :age")
+    int bulkAgePlus(@Param("age") int age);
+
+
+
+
+
+
+
+
+
+
+
+    /**
+     * jpa Hint(Sql 힌드가 아니라 Jpa 구현체에 제공하는 힌트)
+     * 하이버네이트한테 알려주는 힌드
+     *
+     * jpa 표준이란 > 인터페이스의 모음.
+     * 하이버네이트의 기능을 더 쓰고  싶을때 힌트를 보냄.
+     */
+
+    @QueryHints(value = @QueryHint(name = "org.hibernate.readOnly", value = "true"))
+    Member findReadOnlyByUsername(String name);
+
+
+    /**
+     * 락
+     * 해당 데이터에 대해서 나만 건들고 다른애들은 못건들게 할거야
+     * 저번학기에 배웠던 내용복습
+     *
+     * 힌트말고 락도 걸어줄 수 있다.
+     */
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<Member> findLockByUsername(String username);
+
 }

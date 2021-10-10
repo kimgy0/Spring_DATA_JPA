@@ -13,6 +13,8 @@ import study.datajpa.dto.MemberDto;
 import study.datajpa.entity.Member;
 import study.datajpa.entity.Team;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class MemberRepositoryTest {
     @Autowired MemberRepository memberRepository;
     @Autowired TeamRepository teamRepository;
+    @PersistenceContext
+    EntityManager em;
 
     @Test
     public void testMember() throws Exception{
@@ -205,6 +209,9 @@ class MemberRepositoryTest {
         // 반환 타입을 페이지라고 받게 되면 totalCount가 필요한걸 인지하고 totalCount를 실행한다.
 //        long totalCount = memberRepository.totalCount(age);
 
+        Page<MemberDto> map = page.map(member -> new MemberDto(member.getId(), member.getUsername(), null));
+        //dto로 바꾸는 방법.
+
         List<Member> content = page.getContent();
         //페이지 객체에 getcontent로 결과를 가져올 수 있다.
         long totalElements = page.getTotalElements();
@@ -274,8 +281,166 @@ class MemberRepositoryTest {
          *
          *
          * !------------------count query의 성능--------------------
-         * count쿼리를 분리하는 방법
+         * count쿼리를 분리하는 방법 (인터페이스)
+         *
+         * 나중에 쿼리가 복잡해질 경우 sort를 하는데도 문제가 있다.
+         * 단순 3번째인자인 sort로 안될 때가 있다. 그럴땐 과감하게 3번째 인자를 지워주고
+         * 인터페이스로 넘어가서 @Query 안에 join을 하면서 sort 컨디션을 적어주도록 하자.
          */
     }
 
+
+
+    @Test
+    public void bulkUpdate() throws Exception{
+        memberRepository.save(new Member("member1", 10));
+        memberRepository.save(new Member("member2", 19));
+        memberRepository.save(new Member("member3", 20));
+        memberRepository.save(new Member("member4", 21));
+        memberRepository.save(new Member("member5", 41));
+
+        int resultCount = memberRepository.bulkAgePlus(20);
+        em.flush(); //or em.clear();
+        /*
+         * 벌크 연산의 특성상 1차 캐시와 동기화 되지 않고 update되어서 db만 업데이트 치고
+         * 영속성 컨텍스는 동기화하지 않는다. 이게 벌크연산의 문제인데. em.refresh() 메서드나 다른 방법을로 동기화시켜주어야 한다.
+         * 여기는 data - jpa를 다루는 공간이기 때문에 따로 언급하지 않겠다.
+         *
+         * em.flush(); //or em.clear(); hint
+         *
+         * 꼭 벌크연산 하고나면 실행해주는건 잊지말자.
+         *
+         * 이거말고 인터페이스가서 @Modifiying(clear = true) 라는 속성으로 깔끔하게 1차캐시를 비워주자
+         *
+         */
+        assertThat(resultCount).isEqualTo(3);
+    }
+
+
+
+
+
+    @Test
+    public void findMemberLazy() {
+        //given
+        //member1 -> teamA를 참조하고 있을 때.
+        //member2 -> teamB를 참조하고 있을 때.
+
+        Team teamA = new Team("teamA");
+        Team teamB = new Team("teamB");
+        teamRepository.save(teamA);
+        teamRepository.save(teamB);
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 10, teamB);
+        memberRepository.save(member1);
+        memberRepository.save(member2);
+
+        em.flush();
+        em.clear();
+
+        List<Member> members = memberRepository.findAll();
+        for (Member member : members) {
+            System.out.println("member = " + member);
+        }
+        /*
+         * 1. findAll 할 때 전체 멤버를 다 조회한다.
+         * 2. member.getTeam().getName();
+         *      를 호출하게 되면 쿼리가 한 번씩 나가는 것을 지연로딩의 문제점으로 지적.
+         *      member 객체에 있던 proxy 객체로 team이 가지고 있는 것이 진짜 team을 가져오기 위해서
+         *      영속성컨텍스트에서 가져오려고 하려면 db에 쿼리를 select * from team 이런식으로 가지러나갑니다.
+         *      그러면 쿼리가 당연히 한줄 더 나가는 겁니다.
+         *      이걸 N+1 문제라고 합니다.
+         *      1이 멤버를 불러오는 쿼리고 그에 붙어있는 연관된 아이들의 쿼리입니다.
+         *
+         *      해결방법!
+         *      @Query("select m from Member m fetch join m.team") //연관된 team을 한방쿼리로 다 긁어옴.
+         *      List<Member> findMemberFetchJoin();
+         *
+         *      하지만 fetch join을 할거면 항상 @Query를 적어줘야 한다.
+         *      반복을 없애기 위해서 jpa 메서드 이름과 최소한의 작업으로 fetch join을 하고싶을 때,
+         *
+         *      해결방법2!
+         *      @Override
+         *      @EntityGraph(attributePaths = {"team"}) //엔티티 속성이름.
+         *      List<Member> findAll();
+         *      으로 엔티티그래프 어노테이션 하나로 fetch join으로 한거번에 불러온다.
+
+         *      해결방법3! (짬뽕)
+         *      @Query("select m from Member m")
+         *      @EntityGraph(attributePaths = {"team"}) //엔티티 속성이름.
+         *      List<Member> findMemberEntityGraph();
+         *
+         *      해결방법4 (이름으로 하는방법)
+         *      @EntityGraph(attributePaths = {"team"}) //엔티티 속성이름.
+         *      List<Member> findEntityGraphByUsername(@Param("username) String username);
+         *
+         *
+         *  @EntityGraph 속성은 jpa 표준 속성입니다.
+         *  @NamedEntityGraph(name = "Member.all", attributeNodes = @NamedAttributeNode("team"))
+         *  를 엔티티 클래스 위에 달아줘도 가능합니다.
+         *      밑의 방식으로!
+         *      @EntityGraph("Member.all") //엔티티 속성이름.
+         *      List<Member> findEntityGraphByUsername(@Param("username) String username);
+         * */
+    }
+
+
+
+    @Test
+    public void queryHint() throws Exception{
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+        em.flush();
+        em.clear();
+        /*
+         * 영속성 컨텍스트를 다 날림.
+         */
+
+        Member findMember = memberRepository.findById(member1.getId()).get();
+//        findMember.setUsername("member2");
+        //em.flush();
+        /*
+         * 이런식으로 변경감지가 됐을 때 flush를 치는 순간 쿼리가 나감.
+         * 변경 감지가 뭘 하려면 원본이 있어야함.
+         * 객체를 두개를 감시하는꼴이다 ( 원본, 바뀐객체 )
+         *
+         * 바뀐걸 알려면 원본이 있어야 비교를 하기 때문에 어떻게든 메모리를 더 쓰게 됩니다.
+         *
+         * 만약, 변경안하고 findMember 해서 db에서 단순히 조회만 하고 변경안할거야 라고 한다면
+         * 가지고 오는 순간 이미 원본을 만들어 놓고 시작해
+         * 나는 100퍼 이거를 조회용으로만 쓸거야 라고 한다면 그 방법이 있다.
+         * jpa 표준 스펙이 아님.
+         *
+         * 그래서 하이버네이트기술을 이용하는데 이래서 hint가 필요한 것이다.
+         *  @QueryHints(value = @QueryHint(name = "org.hibernate.readOnly", value = "true"))
+         *  Member findReadOnlyByUsername(String name);
+         * */
+        Member findByMember = memberRepository.findReadOnlyByUsername("member1");
+        findByMember.setUsername("member2");
+        /*
+         * 이런식으로 적어주게 되면 queryhint readonly true를 시켜버리는 순간 변경을 무시해버린다.
+         * 위에서 말한 원본 data를 만들지 않게 됨.
+         * */
+        em.flush();
+
+    }
+
+    @Test
+    public void lock() throws Exception{
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+        em.flush();
+        em.clear();
+
+        List<Member> result = memberRepository.findLockByUsername("member1");
+        /*
+         * 락을 걸어줄 때 db에 쿼리가 나가면 쿼리 뒤에 for Update 라는 키워드가 붙게 된다.
+         * 단, db 방언에 따라 다르기 때문에 메뉴얼을 찾아보고 해보자.
+         *
+         * 내용이 너무 깊은 내용이기 때문에 jpa 책을 찾아보자.
+         *
+         * 저번학기 때 배웠던 db개론에서 배웠던 락 -> 나중에 은행서비스나 돈을 맞추는게 더 중요하거나 실시간 트래픽이 많지 않을 때 lock에 대해 더 공부해보자.
+         */
+
+    }
 }

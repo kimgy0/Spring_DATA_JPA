@@ -423,6 +423,7 @@ class MemberRepositoryTest {
          * */
         em.flush();
 
+
     }
 
     @Test
@@ -442,5 +443,29 @@ class MemberRepositoryTest {
          * 저번학기 때 배웠던 db개론에서 배웠던 락 -> 나중에 은행서비스나 돈을 맞추는게 더 중요하거나 실시간 트래픽이 많지 않을 때 lock에 대해 더 공부해보자.
          */
 
+    }
+
+    @Test
+    public void callCustom() throws Exception{
+        //given
+        List<Member> result = memberRepository.findMemberCustom();
+    }
+
+    @Test
+    public void jpaEventBaseEntity() throws Exception{
+        //given
+        Member member = new Member("member1");
+        memberRepository.save(member); //@PrePersist가 발생!
+        Thread.sleep(100);
+        member.setUsername("member2");
+        em.flush(); //@PreUpdate가 실행
+        em.clear();
+        //when
+
+        Member findMember = memberRepository.findById(member.getId()).get();
+
+        //then
+        System.out.println("findMember.getCreatedDate = " + findMember.getCreatedDate());
+        System.out.println("findMember.getUpdatedDate = " + findMember.getUpdatedDate());
     }
 }

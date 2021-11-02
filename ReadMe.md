@@ -30,38 +30,6 @@ JpaRepository 인터페이스이다. 어떻게 인터페이스를 구현하지 �
 
 
 
-### Spring Data JPA
-
-<HR>
-
-
-스프링 DATA JPA는 우리가 구현하지 못하는 정말 무수히 많은 메서드들을 구현하고 있다.
-
-`public interface MemberRepository extends JpaRepository<Member, Long>` 라는 JpaRepository로 제네릭에 내가 반환 받고자하는 엔티티 클래스 이름과, 그 엔티티가 PK로 매핑하고 있는 ID타입을 적어주게 되면 모든 것이 끝나게 된다.
-
-```java
-/*
-	 * (non-Javadoc)
-	 * @see org.springframework.data.repository.CrudRepository#findAll()
-	 */
-	@Override
-	List<T> findAll();
-```
-
-JpaRepository 인터페이스이다. 어떻게 인터페이스를 구현하지 않았는데도 작동하는 방법이 궁금하다.
-
-그래서 `getClass(); ` 메서드로 찍어보면 `com.sun.proxy.$Proxy107` 라는 클래스로 표현된다. 이는 스프링 부트가 자체적으로 내부에서 구현체를 생산하여 그 구현체를 인젝션하는 방식을 채택한다.
-
-그외에 부가적으로 Jpa의 예외를 <b>스프링 예외로 공통처리를</b>하는 기능과 자동으로 <b>ComponentScan</b> 의 기능을 가지고 있다.
-
-재미있는 것은 더 파고들면 JpaRepository 클래스는 `package org.springframework.data.jpa.repository;` 라는 패키지에서 나오고 있다. 
-
-더 들어가보면 ` PagingAndSortingRepository<T, ID>` 이를 상속받는데 이거는 `package org.springframework.data.repository; ` 이쪽 패키지에 매핑이 되어있다.  data.jpa 와 data 의 차이에서 알 수 있었다. 이거는 REDIS나 MONGODB 등과 같이 커스텀적으로 공통으로 하는 인터페이스들과 JPA에 특화된 JPA인터페이스라는 것이다.
-
-라이브러리 역시 다르다. Gradle: org.springframework.data:spring-data-commons:version 에 data 패키지와 같은 공통인터페이스들을 가지고 있으며 jpa는 spring-jpa 라이브러리에 묶여있다.
-
-
-
 실무에서 프로젝트의 db를 바꾼다는 것은 상당히 까다롭고 어렵고 번거로운 일이다. 그래서 이를 db기준으로 볼게 아니라 그냥 <b>jpa의 사용을 더 편리하게 해준다는 점</b>에서 봐야할 것 같다.
 
 
@@ -678,3 +646,361 @@ em.flush();
 ```
 
 이런식으로 적어주게 되면 queryhint readonly를 true로 줘버리는 순간 위에서 언급한 원본 data를 만들지 않게 됩니다.
+
+
+
+
+
+
+
+<h4>사용자 확장 기능</h4>
+
+<hr>
+
+- **사용자 정의 리포지토리**
+
+  JPA의 직접사용과 스프링 JDBC 템플릿 사용, Connection을 직접 사용해야 할 경우, QueryDsl 을 사용해야할 경우 등등 다양한 이유에서 직접 구현해야할 일이 있을 때 구현하는 방법이다.
+
+  ```java
+  public interface MemberRepositoryCustom {
+      List<Member> findMemberCustom();
+  }
+  ```
+
+  위와 같이 만들고자 하는 인터페이스를 생성하고
+
+  ```java
+  @RequiredArgsConstructor
+  public class MemberRepositoryImpl implements MemberRepositoryCustom{
+  
+      @PersistenceContext
+      private final EntityManager em;
+  
+      @Override
+      public List<Member> findMemberCustom() {
+          return em.createQuery("select m from Member m").getResultList();
+      }
+  }
+  ```
+
+  그리고 그 인터페이스를 구현하여 <b>네이티브 쿼리</b> 등 커넥션을 얻어오거나 다양한 활동을 해준다.
+
+  이 코드에서는 JPA를 직접 다루기 위해서 `@PersistenceContext` 를 이용해 em객체를 얻어왔다.
+
+  ```java
+  public interface MemberRepository
+      extends JpaRepository<Member, Long> , MemberRepositoryCustom{
+  	.
+  	.
+  	.
+  	.
+  }
+  ```
+
+  그리고 JPA인터페이스를 구현해놓은 인터페이스로 가서 
+
+  ​	-> 여기서 MemberRepositoryCustom 인터페이스를 인터페이스 to 인터페이스로 상속해주어야 한다.
+
+  이렇게 되면 스프링 자체에서 MemberRepositoryCustom을 구현한 클래스의 기능을 이어준다.(?)
+
+  🎒  이게 자바 자체의 기능은 아니고 스프링 자체에서 하는 기능이다.
+
+  🎒  여기서 **규칙!**
+
+    1. 구현되어지는 인터페이스는 이름을 아무거나 가져도 상관이 없지만, MemberRepository에 상속되어지는 그 **인터페이스** 를 구현한 클래스의 이름은 JPA를 구현한 인터페이스 이름 + **Impl** 이 되어야만 한다.
+
+    2. Impl 규칙을 굳이 바꾸고 싶다면.
+
+         1. ```java
+            @EnableJpaRepositories
+            (basePackages = "study.datajpa.repository",repositoryImplementationPostfix = "Impl")
+            ```
+
+            위의 방법은 어노테이션 컨피그변경 방법
+
+       		2. ```xml
+            <repositories base-package="study.datajpa.repository"
+             repository-impl-postfix="Impl" />
+            ```
+
+            xml로 설정시의 방법을 통해 규칙을 바꿔줄 수 있다.
+
+
+
+
+
+- **Auditing (엔티티를 변경, 생성, 생성자, 수정자를 주기)**
+
+  기존 순수 JPA 방식
+
+  ```java
+  @Getter
+  @Setter
+  @MappedSuperclass
+  public class JpaBaseEntity {
+  
+      @Column(updatable = false, insertable = false)
+      private LocalDateTime createdDate;
+      private LocalDateTime updatedDate;
+  
+      @PrePersist
+      public void prePersist(){
+          LocalDateTime now = LocalDateTime.now();
+          this.createdDate = now;
+          this.updatedDate = now;
+      }
+  
+      @PreUpdate
+      public void preUpdate(){
+          this.updatedDate = LocalDateTime.now();
+      }
+  }
+  ```
+
+  - **@PreUpdate** : UPDATE 발생시 (변경 감지) 실행되는 메서드.
+
+  - **@PrePersist** : PERSIST 를 진행하기 전에 발생하는 메서드.
+
+  - @PostUpdate , @PostPersist 어노테이션 등등이 있다.
+
+    
+
+  그리고 이 클래스를 `@MappedSuperclass` 어노테이션을 사용해서 속성만 내려쓰는 상속관계를 이용했다.
+
+  ```java
+  @Test
+  public void jpaEventBaseEntity() throws Exception{
+       //given
+       Member member = new Member("member1");
+       memberRepository.save(member); //@PrePersist가 발생!
+       Thread.sleep(100);
+       
+       member.setUsername("member2");
+       em.flush(); //@PreUpdate가 실행
+       em.clear();
+       //when
+       Member findMember = memberRepository.findById(member.getId()).get();
+       
+       //then
+       System.out.println("findMember.getCreatedDate = " + findMember.getCreatedDate());
+       System.out.println("findMember.getUpdatedDate = " + findMember.getUpdatedDate());
+  }
+       
+  ```
+
+  위의 테스트코드를 이용해서 업데이트 된 날짜와 만들어진 날자를 
+
+  `System.out.println("findMember.getCreatedDate = " + findMember.getCreatedDate());`
+
+  `System.out.println("findMember.getUpdatedDate = " + findMember.getUpdatedDate());`
+
+  이 두문장으로 확인했을 때 약 100ms 정도의 차이를 보였다.
+
+  
+
+  
+
+  *위와 같은 방식을 쓰지 말고 Auditing을 제대로 써보자.*
+
+  ```java
+  @EnableJpaAuditing
+  @SpringBootApplication
+  //@EnableJpaRepositories(basePackages = "study.datajpa.repository")
+  //스프링 부트 자동 처리
+  public class DataJpaApplication {
+  
+  	public static void main(String[] args) {
+  		SpringApplication.run(DataJpaApplication.class, args);
+  	}
+  ```
+
+  **@EnableJpaAuditing** 어노테이션을 이런식으로 등록 해준다. (활성화 하겠다는 뜻.)
+
+  ```java
+  @EntityListeners(AuditingEntityListener.class)
+  @MappedSuperclass
+  @Getter
+  public class BaseEntity {
+  
+      @CreatedDate
+      @Column(updatable = false)
+      private LocalDateTime createdDate;
+  
+      @LastModifiedDate
+      private LocalDateTime lastModifiedDate;
+  
+      @CreatedBy
+      @Column(updatable = false)
+      private String createdBy;
+  
+      @LastModifiedBy
+      private String lastModifiedBy;
+  }
+  ```
+
+  `@EntityListener(AuditingEntityListener.class)` 로 일단 이벤트 기반으로 동작하는 것을 알려주는 설정을 입력하는 어노테이션이라고 한다. 그리고 구현하고자 하는 클래스 위에 어노테이션을 붙여주고
+
+  ```java
+  @Bean
+  public AuditorAware<String> auditorProvider(){
+        return new AuditorAware<String>() {
+           @Override
+           public Optional<String> getCurrentAuditor() {
+              return Optional.of(UUID.randomUUID().toString());
+           }
+        };
+     }
+     //return () -> Optional.of(UUID.randomUUID().toString());
+  }
+  ```
+
+  이런식으로 빈등록을 해주어야 한다. AuditorAware<String> 반환 형식으로 인터페이스를 inner class로 구현해주었다. getCurrentAuditor() 메서드를 구현했으며 반환값으로 랜덤UUID를 넘겼다.
+
+  `return () -> Optional.of(UUID.randomUUID().toString());` 이 코드같이 인터페이스가 하나이면 람다식으로 구현 가능하다는 것도 잊지말자. 자세히 보고자 풀어서 이너클래스로 구현하였다.
+
+  여기서 UUID를 넘겨준 이유가 무었이냐면 
+
+  ```java
+  @CreatedBy
+  @Column(updatable = false)
+  private String createdBy;
+  
+  @LastModifiedBy
+  private String lastModifiedBy;
+  ```
+
+  이 두 필드 때문이다.
+
+  **@---By**로 인해서 그 해당 컬럼에 uuid를 넘겨주는 것이다.
+
+  나중에 **시큐리티를 배우면** 시큐리티홀더 세션 자체에 id값이나 member정보를 꺼내어 와서 이쪽으로 반환하는 방법도 좋은 방법이다.
+
+  여기서 내가 구현한 것처럼 4개속성을 다 갖다가 한클래스에 배치하는 방법도 있지만 클래스마다 속성이 다르기때문에 @by 어노테이션이 필요한경우도 있고 없는 경우도 있다. 그럴때는 필드만 나누어서 클래스를 따로 구현하고 상속관계로서 매핑을 해주자.
+
+  
+
+- **도메인 클래스 컨버터**
+
+  ```java
+  @RestController
+  @RequiredArgsConstructor
+  public class MemberController {
+      private final MemberRepository memberRepository;
+  
+      @GetMapping("/members/{id}")
+      public String findMember(@PathVariable("id") Long id){
+          Member member = memberRepository.findById(id).get();
+          return member.getUsername();
+      }
+  
+      @GetMapping("/members2/{id}")
+      public String findMember(@PathVariable("id") Member member){
+          return member.getUsername();
+      }
+  }
+  ```
+
+- **웹에서의** **Pageable**
+
+  위 코드를 이어서 씀.
+
+  ```java
+  @PostConstruct
+  public void init(){
+  	memberRepository.save(new Member("userA"));
+      for(int i =0; i<100; i++){
+          memberRepository.save(new Member("user"+i));
+      }
+  }
+  ```
+
+  우선 테스트 샘플 100개를 준비하고
+
+  ```java
+  @GetMapping("/members")
+  public Page<Member> list(Pageable pageable){
+      return memberRepository.findAll(pageable);
+  }
+  ```
+
+  Pageable 객체를 빈으로 받아서 findAll메서드를 받는다.
+
+  인자가 pageable 객체를 받는 메서드나 인터페이스를 구현하지 않았는데 있는 이유는
+
+  `public interface JpaRepository<T, ID> extends PagingAndSortingRepository<T, ID>, QueryByExampleExecutor<T>`
+
+  jparepository에 `PagingAndSortingRepository<T, ID>` 이쪽으로 들어가게 되면,
+
+  ```java
+  @NoRepositoryBean
+  public interface PagingAndSortingRepository<T, ID> extends CrudRepository<T, ID> {
+  
+  	/**
+  	 * Returns all entities sorted by the given options.
+  	 *
+  	 * @param sort
+  	 * @return all entities sorted by the given options
+  	 */
+  	Iterable<T> findAll(Sort sort);
+  
+  	/**
+  	 * Returns a {@link Page} of entities meeting the paging restriction provided in the {@code Pageable} object.
+  	 *
+  	 * @param pageable
+  	 * @return a page of entities
+  	 */
+  	Page<T> findAll(Pageable pageable);
+  }
+  
+  ```
+
+  이렇게 스프링 코드 자체에서 구현을 해놓았기 때문이다.
+
+  `Page<T> findAll(Pageable pageable);` 를 이용해 페이징을 할 때
+
+  `@GetMapping("/members")` 이 경로로 들어가게 되면 보통은 100개의 정보를 다 반환하지만
+
+  - http://localhost:8080/members?page=0 : 기본 20개씩 데이터를 불러오고
+  - http://localhost:8080/members?page=1 : pk가 21인 것부터 또 불러오게 된다. (20개를)
+  - http://localhost:8080/members?page=0&size=3 : size로 인해서 pk가 1,2,3
+  - http://localhost:8080/members?page=1&size=3 : page와 size로 인해서 pk가 4,5,6 인 멤버를 불러옴.
+  - http://localhost:8080/members?page=0&size=3&sort=id,desc : 이런식으로 정렬도 되고&sort=username,desc 이런식으로 이어서 써도된다.
+
+  하지만 위를 보면 기본 20개씩 불러오는 디폴트 설정을 바꾸고 싶으면
+
+  ```yaml
+  data:
+  	web:
+  		pageable:
+  			default-page-size: 10
+              max-page-size: 2000
+  ```
+
+  ```java
+  public Page<Member> list(@PageableDefault(size=5, sort="username") Pageable pageable)
+  ```
+
+  위의 yaml에서 바꿔주는 것과 자바코드로 바꿔주는 @PageableDefault 어노테이션이 있다.
+
+  🎒 여기서 중요한 점은 엔티티를 그대로 외부로 유출하면 안된다는 점이다. 그렇기 떄문에 map함수로 DTO로 변환해서 바꿔주는 방법을 고려하자.
+
+  🎒 `Page<MemberDto> map = page.map(member -> new MemberDto(member.getId(), member.getUsername(), null));`
+
+  🎒 0인덱스가 프리미티브 값으로 맘에 들지 않을 떄는 기본 Pageable객체를 쓰지 말고 pageRequest.of(1,2,sort --- ) 썼던 방법으로 
+
+  `PageRequest pageRequest = PageRequest.of(0, 3,Sort.by(Sort.Direction.DESC, "username"));`
+
+  JPA인터페이스를 구현하여서 사용하자.
+
+  또, yaml에서 바꿔주는 방법이 있는데
+
+  ```yaml
+  ata:
+  	web:
+  		pageable:
+           one-indexed-parameters: true
+  ```
+
+  위 방법과 같이 바꿔줘도 되지만 json 불일치 문제가 발생기하기도 한다.
+
+  권장하지는 않는 방법이다.

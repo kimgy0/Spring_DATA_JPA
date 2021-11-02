@@ -21,7 +21,7 @@ import javax.persistence.*;
 // Setter 는 엔티티에 다는 것을 권장하지 않는다.
 @ToString(of = {"id","username","age"})
 //@ToString(of = {"id","username","age","team"}) 팀을 추가 해주면 연관관계를 타고 들어가서 toString 을 출력해서 무한 루프에 빠질 수 있음!.
-public class Member {
+public class Member extends JpaBaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "member_id")

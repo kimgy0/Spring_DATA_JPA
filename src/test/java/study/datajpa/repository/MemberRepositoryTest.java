@@ -468,4 +468,236 @@ class MemberRepositoryTest {
         System.out.println("findMember.getCreatedDate = " + findMember.getCreatedDate());
         System.out.println("findMember.getUpdatedDate = " + findMember.getUpdatedDate());
     }
+    
+    @Test
+    public void projections() throws Exception{
+        /*
+         * 프로젝션이란? 엔티티를 조회할 때 엔티티 그 자체를 조회하지만 예를들어 필드 하나만 조회하고 싶을 때 정말 편한 기능
+         * 1. 인터페이스 프로젝
+         *
+         */
+
+
+        //given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+
+        Member m1 = new Member("m1", 0, teamA);
+        Member m2 = new Member("m2", 0, teamA);
+        em.persist(m1);
+        em.persist(m2);
+
+        em.flush();
+        em.clear();
+
+        //when
+        /*
+         * memberRepository ->
+         *         List<UsernameOnly> findProjectionsByUsername(@Param("username") String username);
+         *
+         * UsernameOnly ->
+         * public interface UsernameOnly {
+         *       String getUsername();
+         *
+         *
+         *
+         *
+         * 2021-11-03 22:01:08.276 DEBUG 32376 --- [           main] org.hibernate.SQL                        :
+    select
+        member0_.username as col_0_0_
+    from
+        member member0_
+    where
+        member0_.username=?
+usernameOnly = org.springframework.data.jpa.repository.query.AbstractJpaQuery$TupleConverter$TupleBackedMap@278cbf5a
+*
+*m0
+*
+*
+*
+*
+* username Only 메서드에
+* @Value("#{target.username + ' ' + target.age}")
+* getusername 위에 적어주게 되면
+* select로 일단 다 가져오고 거기서 걸러서 2개만 뽑아준다.
+*   select
+        member0_.member_id as member_i1_0_,
+        member0_.created_date as created_2_0_,
+        member0_.updated_date as updated_3_0_,
+        member0_.age as age4_0_,
+        member0_.team_id as team_id6_0_,
+        member0_.username as username5_0_
+    from
+        member member0_
+    where
+        member0_.username=?
+usernameOnly = Member(id=1, username=m1, age=0)
+         * }
+         */
+        List<UsernameOnly> result = memberRepository.findProjectionsByUsername("m1");
+        //이것의 쿼리는 select m.username from member m where m.username = "m1"
+        for (UsernameOnly usernameOnly : result) {
+            System.out.println("usernameOnly = " + usernameOnly);
+            System.out.println(usernameOnly.getUsername());
+            //그리고 이것은 어떤 값이냐면 -> 구현 클래스는 스프링 데이터 jpa가 프록시 기술을 가지고 가짜로 만들어버린다.
+            //인터페이스만 만들어놓으면 스프링데이터제이피에이가 구현체까지 다 담아서 줌.
+        }
+
+        //then
+        
+    }
+    
+    
+    
+    @Test
+    public void ProjectionsTest() throws Exception{
+        //given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+
+        Member m1 = new Member("m1", 0, teamA);
+        Member m2 = new Member("m2", 0, teamA);
+        em.persist(m1);
+        em.persist(m2);
+
+        em.flush();
+        em.clear();
+
+
+
+        //when
+        List<UsernameOnlyDto> result = memberRepository.findProjectionClassByUsername("m1");
+        //프로젝션이 username하나만 들어있음.
+        //이건 인터페이스처럼 프록시가 들어가는게아니라 클래스는 구체 클래스를 구현해서 넣어준다.
+        for (UsernameOnlyDto usernameOnlyDto : result) {
+            System.out.println("usernameOnlyDto = " + usernameOnlyDto);
+            System.out.println("usernameOnlyDto.getUsername() = " + usernameOnlyDto.getUsername());
+        }
+        
+        //then
+        
+    }
+    //프로젝션 클래스기반
+    /*
+    public class UsernameOnlyDto {
+
+    private final String username;
+
+    public UsernameOnlyDto(String username){
+        //생성자의 파라미터 이름으로 매칭시켜서 가능.
+        this.username = username;
+    }
+
+    public String getUsername(){
+        return username;
+    }
+}
+
+     */
+
+
+    //2.
+    /*
+
+    List<UsernameOnlyDto> result = memberRepository.findProjectionClassByUsername("m1",UsernameDto.class);
+
+    <T> List<T> findProjectionClassByUsername(@Param("username") String username, Class<T> type);
+    어쩔떄는 나이도 같이가져오고싶고 이름도 가져오고 싶고 하면 이런식으로 적어주면 됨.
+
+    여기서 클래스를 지정해줄 수 있음. 클래스로 동적 프로젝션이가능.
+     */
+
+
+
+//    public interface NestedClosedProjections {
+//        String getUsername();
+//        TeamInfo getTeam();
+//
+//        interface TeamInfo{
+//            String getName();
+//        }
+//        /**
+//         * 중첩구조의 처리
+//         * 멤버뿐 아니라 연관된 팀까지 가져온다.
+//         */
+
+    /*
+<T> List<T> findProjectionClassByUsername(@Param("username") String username, Class<T> type);
+List<NestedClosedProjections> result = memberRepository.findProjectionClassByUsername("m1",NestedClosedProjections.class);
+
+    이렇게 바꾸면 쿼리 조건만 findByUsername이고 나머지 프로젝션은 nestedProjectionclass
+
+    이렇게되면
+    쿼리가 username만 가져오는데 팀에서는 팀의 모든것들을 다 불러옴
+    이부분에서 최적화에 대해서 x
+    left join (left outer join)이다. 그래서 inner조인 보다 무조ㅗ건 다 가져오기 떄문에 데이터 손실의 위험은 없다.
+
+    root엔티티를 넘어가면 쿼리최적화가 되지 않습니다. 실무의 복잡한 쿼리를 해결하기에는 한계가 조금 있어요!
+     */
+
+
+    /**
+     * 네이티브 쿼리
+     * 사용하지 않는게 좋음 일단
+     * 사용방법
+     * @Query(value="select * from member where username = ?", nativeQuery=true)
+      Member findByNativeQuery(String username);
+
+    nativeQuery=true 를 주면 아! 이게 네이티브쿼리구나 하는 것을 알음.
+
+     네이티브쿼ㅣㄹ로 다가져올때는 멤버 모든 것을 다찍어야하고
+     네이티브 쿼리를 썼다는 거는 멤버엔티티를 조회하겟따는 목적보다는 dto로 조회하고싶을때가 많음. 문제는 ! 반환타입이 몇가지 지원이 안됨.
+
+     예를들어 select username from member where username = ? 으로 했으면
+     반환타입은 member인데 string ? 애매하다...
+
+     이런거쓰지말고 마이바티스나 , jdbc템플릿을 사용하는게 더 낫다.
+
+     jpql처럼 애플리케이션 로딩 시점에 문법확인 불가
+    jpql은 어플리케이션 로딩 시점 전에 파싱해서 뭐 하든지 하는데
+     동적 쿼리불가.
+
+
+
+    ->페이징도 가능하다!
+    @Query(value ="select m.member_id as id, m.username, t.name as teamName from member m left join team t"
+            ,countQuery = "select count(*) from member"
+            , nativeQuery=true)
+     Page<MemberProjection> findByNativeProjection(Pageable pageable);
+
+    이렇게 제네릭에 있는 클래스를 만들어주고고
+   public interface MemberProjection {
+    Long getId();
+    String getUsername();
+    String getTeamName();
+    }
+
+    t.name as teamName 쿼리에서 보였다 시피 이렇게 as를 써서 인터페이스와 이름을 맞춰주면 쿼리가 나가게됨.
+
+     이 기능이 최근에 들어와서 정적쿼리면 이정도는 써볼 수 있겟다!
+     dto오로 받는 방법ㅂ!
+     */
+    @Test
+    public void nativeQuery() throws Exception{
+        //given
+        Team teamA = new Team("teamA");
+        em.persist(teamA);
+
+        Member m1 = new Member("m1", 0, teamA);
+        Member m2 = new Member("m2", 0, teamA);
+        em.persist(m1);
+        em.persist(m2);
+
+        em.flush();
+        em.clear();
+        
+        
+        //when
+        Member findMember = memberRepository.findByNativeQuery("m1");
+        System.out.println("findMember.getUsername() = " + findMember.getUsername());
+        
+        //then
+        Assertions.assertThat(findMember.getUsername()).isEqualTo("m1");
+        
+    }
 }

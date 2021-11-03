@@ -38,9 +38,9 @@ public class MemberController {
 //        memberRepository.save(new Member("userA"));
    //이전 도메인클래스 컨버터에서 테스트 샘플할 때 넣어준 코드
 
-        for(int i =0; i<100; i++){
-            memberRepository.save(new Member("user"+i));
-        }
+//        for(int i =0; i<100; i++){
+//            memberRepository.save(new Member("user"+i));
+//        }
 
     }
 

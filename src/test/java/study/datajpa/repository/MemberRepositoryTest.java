@@ -472,7 +472,8 @@ class MemberRepositoryTest {
     @Test
     public void projections() throws Exception{
         /*
-         * 프로젝션이란? 엔티티를 조회할 때 엔티티 그 자체를 조회하지만 예를들어 필드 하나만 조회하고 싶을 때 정말 편한 기능
+         * 프로젝션이란? 엔티티를 조회할 때 엔티티 그 자체를
+         *  조회하지만 예를들어 필드 하나만 조회하고 싶을 때 정말 편한 기능
          * 1. 인터페이스 프로젝
          *
          */
@@ -637,7 +638,7 @@ List<NestedClosedProjections> result = memberRepository.findProjectionClassByUse
 
 
     /**
-     * 네이티브 쿼리
+     * 네이티브 쿼리          +하이버네이트 ㅣㄱ능도 ㅇㅆ음
      * 사용하지 않는게 좋음 일단
      * 사용방법
      * @Query(value="select * from member where username = ?", nativeQuery=true)

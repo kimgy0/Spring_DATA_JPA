@@ -659,16 +659,17 @@ em.flush();
 
 - **사용자 정의 리포지토리**
 
-  JPA의 직접사용과 스프링 JDBC 템플릿 사용, Connection을 직접 사용해야 할 경우, QueryDsl 을 사용해야할 경우 등등 다양한 이유에서 직접 구현해야할 일이 있을 때 구현하는 방법이다.
-
+  > JPA의 직접사용과 스프링 JDBC 템플릿 사용, Connection을 직접 사용해야 할 경우, QueryDsl 을 사용해야할 경우 등등 다양한 이유에서 직접 구현해야할 일이 있을 때 구현하는 방법이다.
+>
+  
   ```java
   public interface MemberRepositoryCustom {
       List<Member> findMemberCustom();
   }
-  ```
-
-  위와 같이 만들고자 하는 인터페이스를 생성하고
-
+```
+  
+위와 같이 만들고자 하는 인터페이스를 생성하고
+  
   ```java
   @RequiredArgsConstructor
   public class MemberRepositoryImpl implements MemberRepositoryCustom{
@@ -681,12 +682,12 @@ em.flush();
           return em.createQuery("select m from Member m").getResultList();
       }
   }
-  ```
-
-  그리고 그 인터페이스를 구현하여 <b>네이티브 쿼리</b> 등 커넥션을 얻어오거나 다양한 활동을 해준다.
-
-  이 코드에서는 JPA를 직접 다루기 위해서 `@PersistenceContext` 를 이용해 em객체를 얻어왔다.
-
+```
+  
+그리고 그 인터페이스를 구현하여 <b>네이티브 쿼리</b> 등 커넥션을 얻어오거나 다양한 활동을 해준다.
+  
+이 코드에서는 JPA를 직접 다루기 위해서 `@PersistenceContext` 를 이용해 em객체를 얻어왔다.
+  
   ```java
   public interface MemberRepository
       extends JpaRepository<Member, Long> , MemberRepositoryCustom{
@@ -695,35 +696,36 @@ em.flush();
   	.
   	.
   }
-  ```
-
-  그리고 JPA인터페이스를 구현해놓은 인터페이스로 가서 
-
-  ​	-> 여기서 MemberRepositoryCustom 인터페이스를 인터페이스 to 인터페이스로 상속해주어야 한다.
-
-  이렇게 되면 스프링 자체에서 MemberRepositoryCustom을 구현한 클래스의 기능을 이어준다.(?)
-
-  🎒  이게 자바 자체의 기능은 아니고 스프링 자체에서 하는 기능이다.
-
-  🎒  여기서 **규칙!**
-
-    1. 구현되어지는 인터페이스는 이름을 아무거나 가져도 상관이 없지만, MemberRepository에 상속되어지는 그 **인터페이스** 를 구현한 클래스의 이름은 JPA를 구현한 인터페이스 이름 + **Impl** 이 되어야만 한다.
-
-    2. Impl 규칙을 굳이 바꾸고 싶다면.
-
+```
+  
+그리고 JPA인터페이스를 구현해놓은 인터페이스로 가서 
+  
+​	-> 여기서 MemberRepositoryCustom 인터페이스를 인터페이스 to 인터페이스로 상속해주어야 한다.
+  
+이렇게 되면 스프링 자체에서 MemberRepositoryCustom을 구현한 클래스의 기능을 이어준다.(?)
+  
+🎒  이게 자바 자체의 기능은 아니고 스프링 자체에서 하는 기능이다.
+  
+🎒  여기서 **규칙!**
+  
+  1. 구현되어지는 인터페이스는 이름을 아무거나 가져도 상관이 없지만, MemberRepository에 상속되어지는 그 **인터페이스** 를 구현한 클래스의 이름은 JPA를 구현한 인터페이스 이름 + **Impl** 이 되어야만 한다.
+  
+  2. Impl 규칙을 굳이 바꾸고 싶다면.
+  
          1. ```java
             @EnableJpaRepositories
             (basePackages = "study.datajpa.repository",repositoryImplementationPostfix = "Impl")
-            ```
-
-            위의 방법은 어노테이션 컨피그변경 방법
-
-       		2. ```xml
+          ```
+  
+          위의 방법은 어노테이션 컨피그변경 방법
+  
+            		2. ```xml
             <repositories base-package="study.datajpa.repository"
              repository-impl-postfix="Impl" />
-            ```
-
+          ```
+  
             xml로 설정시의 방법을 통해 규칙을 바꿔줄 수 있다.
+            ```
 
 
 
@@ -1004,3 +1006,239 @@ em.flush();
   위 방법과 같이 바꿔줘도 되지만 json 불일치 문제가 발생기하기도 한다.
 
   권장하지는 않는 방법이다.
+
+
+
+<h3>Native Query</h3>
+
+<hr>
+
+```java
+@Query(value="select * from member where username = ?", nativeQuery=true)
+Member findByNativeQuery(String username);
+```
+
+네이티브 쿼리를 치려면 @Query 어노테이션 value에 실제 sql에 나가야하는 쿼리를 적어준다.
+
+그리고 핵심은 `nativeQuery`를 적어주는 속성에 `true` 를 적어주면 nativeQuery로 인식.
+
+
+
+하지만 실무에서는 정말 하다가 안되는 경우에만 사용하는게  좋다고 한다.
+
+네이티브쿼리 대신에 JDBC Template나 mybatis 같은 것들을 이용하자.
+
+- 네이티브 쿼리를 섰다는 것은 멤버 엔티티를 조히하겠다는 못적보다는 dto로 조회하고 싶을때가 많다. 반환타입이 몇가지 지원이 안된다는 것이다.
+- 예를들어 select username from member where username = ? 으로 했으면
+  반환타입은 member인데 string ? 애매하다...
+- 또, jpql처럼 어플리케이션 로딩 시점 전에 파싱해서 뭐하든지 하는데 사전에 문법 확인이 불가하고 동적인 쿼리도 불가능하다는 것이다.
+
+하지만 요 근래 나온 기능을 보면,
+
+```java
+public interface MemberProjection {
+    Long getId();
+    String getUsername();
+    String getTeamName();
+}
+```
+
+인터페이스 처럼 프로젝션 기법을 통해서
+
+```java
+ @Query(value ="select m.member_id as id, m.username, t.name as teamName from member m left join team t"
+            ,countQuery = "select count(*) from member"
+            , nativeQuery=true)
+Page<MemberProjection> findByNativeProjection(Pageable pageable);
+```
+
+이런식으로 작성해도 된다는 것이다.
+
+`m.member_id as id, m.username, t.name as teamName` 이런식으로 alias를 이용해서 데이터베이스의 이름과 맞추고 쿼리를 날리면 프로젝션 기법으로 memberProjection 기능과 함께 dto조회가 함께 가능하다.
+
+Page반환화 Pageable 객체 그리고, countQuery = `"select count(*) from member" `를 적어준 이유는 이방식에서도 Paging이 가능하다는 것을 기억하려고 적어주었다.
+
+
+
+<h3>Projection</h3>
+
+<hr>
+
+> 프로젝션이란 ?
+>
+> 엔티티를 조회할 때 엔티티의 전체 필드를 조회하지만 예를 들어  필드를 하나만 조회하고 싶을 때 사용하는 기능.
+
+0. **공통 TDD Data**
+
+   ```java
+   @Test
+   public void projections() throws Exception{
+       //given
+       Team teamA = new Team("teamA");
+       em.persist(teamA);
+   
+       Member m1 = new Member("m1", 0, teamA);
+       Member m2 = new Member("m2", 0, teamA);
+       em.persist(m1);
+       em.persist(m2);
+   
+       em.flush();
+       em.clear();
+   ```
+
+   
+
+1. **인터페이스를 이용한 프로젝션**
+
+   ```java
+   public interface UsernameOnly {
+       String getUsername();
+   }
+   ```
+
+   ```java
+   List<UsernameOnly> findProjectionsByUsername(@Param("username") String username);
+   ```
+
+   위와 같이 인터페이스를 선언하고 `String getUsername();`을 작성한 후, JpaRepository를 상속한 인터페이스에 제네릭으로 설정한다.
+
+   1-1 테스트
+
+   ```java
+    List<UsernameOnly> result = memberRepository.findProjectionsByUsername("m1");
+    for (UsernameOnly usernameOnly : result) {
+          System.out.println("usernameOnly = " + usernameOnly);
+          System.out.println(usernameOnly.getUsername());
+    }
+   ```
+
+   1-1 테스트의 결과
+
+   ```
+   select
+           member0_.username as col_0_0_
+       from
+           member member0_
+       where
+           member0_.username=?
+           
+   usernameOnly = org.springframework.data.jpa.repository.query.AbstractJpaQuery$TupleConverter$TupleBackedMap@278cbf5a
+   
+   m0
+   ```
+
+   이런식으로 쿼리가 username이 하나만 나가는 것을 볼 수 있다.
+
+   인터페이스 자체를 스프링이 내부에서 프록시형태로 구현체를 만들어서 보내주게 된다.
+
+   ```java
+   @Value("#{target.username + ' ' + target.age}")
+   List<UsernameOnly> findProjectionsByUsername(@Param("username") String username);
+   ```
+
+   이렇게 어노테이션에 `"#{target.propertyName}"` 형식으로 적어주면 결과는
+
+   ```
+    select
+           member0_.member_id as member_i1_0_,
+           member0_.created_date as created_2_0_,
+           member0_.updated_date as updated_3_0_,
+           member0_.age as age4_0_,
+           member0_.team_id as team_id6_0_,
+           member0_.username as username5_0_
+       from
+           member member0_
+       where
+           member0_.username=?
+   usernameOnly = Member(id=1, username=m1, age=0)
+   ```
+
+   아까보다 프로젝션에 더 많은 프로퍼티를 삽입해서 가져오는 것 같다.
+
+   이 방식은 일단 다 퍼올려서 쿼리를 날리고 거기서 age, username 이 두개의 속성을 걸러낸다.
+
+   
+
+2. **클래스를 이용한 프로젝션**
+
+   ```java
+   public class UsernameOnlyDto {
+   
+       private final String username;
+   
+       public UsernameOnlyDto(String username){
+           this.username = username;
+       }
+   
+       public String getUsername(){
+           return username;
+       }
+   }
+   ```
+
+   클래스를 생성해서 프로젝션 하는 것은 생성자의 매개변수 이름이 중요하다. 생성자의 파라미터를 이름으로 매칭시켜서 프로잭션 해오는 방식이다.
+
+   ```java
+   List<UsernameOnlyDto> findProjectionClassByUsername(@Param("username") String username);
+   ```
+
+   위의 인터페이스 방식과 정의하는 모양은 비슷한데 제네릭에 클래스가 들어갔다는 것 빼고는 다른 점은 없다.
+
+   
+
+   이 프로젝션을 사용하면서 어쩔 때는 나이도 가져오고 싶고 이름도 가져오고 싶고 하면 하단과 비슷하게 적어주면 된다.
+
+   ```java
+    <T> List<T> findProjectionClassByUsername(@Param("username") String username, Class<T> type);
+   ```
+
+   ```java
+   List<UsernameOnlyDto> result = memberRepository.findProjectionClassByUsername("m1",UsernameDto.class);
+   ```
+
+   동적 프로젝션이라고 한다.
+
+   
+
+3. **중첩 구조의 프로젝션**
+
+   
+
+   예를 들어 팀과 user의 이름까지 다 가져오고 싶을 때.
+
+   ```java
+   public interface NestedClosedProjections {
+       String getUsername();
+       TeamInfo getTeam();
+   
+       interface TeamInfo{
+           String getName();
+       }
+   ```
+
+   ```java
+   <T> List<T> findProjectionClassByUsername(@Param("username") String username, Class<T> type);
+   
+   List<NestedClosedProjections> result = memberRepository.findProjectionClassByUsername("m1",NestedClosedProjections.class);
+   ```
+
+   조건만 find - ByUsername 으로 
+
+   ***select username, team의 모든 필드 from member left outer join team where username = ?;***
+
+   중첩 프로젝션의 문제점은 무엇이냐면,
+
+   
+
+   (실무의 복잡한 쿼리들을 해결하기 어렵다.)
+
+   username (root 엔티티) 프로젝션을 넘어가면 그 외 조인 되어지는 엔티티에 대해서는 최적화가 불가능하다.
+
+   
+
+   또, **left join** (left outer join) 이기 때문에 inner join 보다는 데이터를 무조건적으로 다 가져오기 때문에 데이터 손실의 걱정은 없다.
+
+   
+
+   
+
